@@ -144,6 +144,11 @@ var sources = map[string][]string{
 		"https://checkerproxy.net/api/archive/2026-06-13",
 		"https://raw.githubusercontent.com/hukkin/txt-proxy-list/master/http.txt",
 		"https://raw.githubusercontent.com/proxy-hub/proxy-list/main/http.txt",
+		"https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/http.txt",
+		"https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/http.txt",
+		"https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-http.txt",
+		"https://raw.githubusercontent.com/Ian-Lusule/Proxies/main/proxies/http.txt",
+		"https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/http/proxies.txt",
 	},
 	"socks4": {
 		"https://raw.githubusercontent.com/officialputuid/ProxyForEveryone/master/socks4/socks4.txt",
@@ -216,6 +221,11 @@ var sources = map[string][]string{
 		"https://raw.githubusercontent.com/soya2/Proxy-List/main/socks4.txt",
 		"https://raw.githubusercontent.com/Free-Proxy-List/free-proxy-list/main/socks4.txt",
 		"https://proxypedia.org/socks4.txt",
+		"https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/socks4.txt",
+		"https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/socks4.txt",
+		"https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-socks4.txt",
+		"https://raw.githubusercontent.com/Ian-Lusule/Proxies/main/proxies/socks4.txt",
+		"https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/socks4/proxies.txt",
 	},
 	"socks5": {
 		"https://raw.githubusercontent.com/officialputuid/ProxyForEveryone/master/socks5/socks5.txt",
@@ -291,6 +301,11 @@ var sources = map[string][]string{
 		"https://raw.githubusercontent.com/Free-Proxy-List/free-proxy-list/main/socks5.txt",
 		"https://raw.githubusercontent.com/hookzof/socks5-list/master/list.txt",
 		"https://proxypedia.org/socks5.txt",
+		"https://raw.githubusercontent.com/komutan234/Proxy-List-Free/main/proxies/socks5.txt",
+		"https://raw.githubusercontent.com/Thordata/awesome-free-proxy-list/main/proxies/socks5.txt",
+		"https://raw.githubusercontent.com/Skillter/ProxyGather/refs/heads/master/proxies/working-proxies-socks5.txt",
+		"https://raw.githubusercontent.com/Ian-Lusule/Proxies/main/proxies/socks5.txt",
+		"https://raw.githubusercontent.com/thenasty1337/free-proxy-list/main/data/latest/types/socks5/proxies.txt",
 	},
 }
 

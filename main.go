@@ -130,6 +130,20 @@ var sources = map[string][]string{
 		"https://www.proxypage.me/proxylist.txt",
 		"https://www.freeproxy.world/?type=http",
 		"https://www.freeproxy.world/?type=https",
+		"https://raw.githubusercontent.com/nicholaschen19/Proxy-List/main/http.txt",
+		"https://raw.githubusercontent.com/soya2/Proxy-List/main/http.txt",
+		"https://raw.githubusercontent.com/kaanguru/ProxyChess/master/proxylist.txt",
+		"https://raw.githubusercontent.com/Free-Proxy-List/free-proxy-list/main/http.txt",
+		"https://proxypedia.org/http.txt",
+		"https://proxypedia.org/https.txt",
+		"https://checkerproxy.net/api/archive/2026-06-18",
+		"https://checkerproxy.net/api/archive/2026-06-17",
+		"https://checkerproxy.net/api/archive/2026-06-16",
+		"https://checkerproxy.net/api/archive/2026-06-15",
+		"https://checkerproxy.net/api/archive/2026-06-14",
+		"https://checkerproxy.net/api/archive/2026-06-13",
+		"https://raw.githubusercontent.com/hukkin/txt-proxy-list/master/http.txt",
+		"https://raw.githubusercontent.com/proxy-hub/proxy-list/main/http.txt",
 	},
 	"socks4": {
 		"https://raw.githubusercontent.com/officialputuid/ProxyForEveryone/master/socks4/socks4.txt",
@@ -198,6 +212,10 @@ var sources = map[string][]string{
 		"https://raw.githubusercontent.com/BLUEdevx/Proxy-Collector/main/socks4.txt",
 		"https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks4.txt",
 		"https://www.freeproxy.world/?type=socks4",
+		"https://raw.githubusercontent.com/nicholaschen19/Proxy-List/main/socks4.txt",
+		"https://raw.githubusercontent.com/soya2/Proxy-List/main/socks4.txt",
+		"https://raw.githubusercontent.com/Free-Proxy-List/free-proxy-list/main/socks4.txt",
+		"https://proxypedia.org/socks4.txt",
 	},
 	"socks5": {
 		"https://raw.githubusercontent.com/officialputuid/ProxyForEveryone/master/socks5/socks5.txt",
@@ -268,6 +286,11 @@ var sources = map[string][]string{
 		"https://raw.githubusercontent.com/gr33n37/Proxy-List/main/socks5.txt",
 		"https://raw.githubusercontent.com/BLUEdevx/Proxy-Collector/main/socks5.txt",
 		"https://www.freeproxy.world/?type=socks5",
+		"https://raw.githubusercontent.com/nicholaschen19/Proxy-List/main/socks5.txt",
+		"https://raw.githubusercontent.com/soya2/Proxy-List/main/socks5.txt",
+		"https://raw.githubusercontent.com/Free-Proxy-List/free-proxy-list/main/socks5.txt",
+		"https://raw.githubusercontent.com/hookzof/socks5-list/master/list.txt",
+		"https://proxypedia.org/socks5.txt",
 	},
 }
 
@@ -278,36 +301,107 @@ var (
 
 // ------------------------------ html source parsers ------------------------------
 
-type htmlSource struct {
-	url string
-	re  *regexp.Regexp
-	cat string // fallback category when protocol not in HTML
-}
+// htmlTableRE matches IP:PORT inside <td> cells — works for most free proxy list sites
+var htmlTableRE = regexp.MustCompile(`<td[^>]*>\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s*</td>\s*<td[^>]*>\s*(\d+)\s*</td>`)
 
 // proxydbRE matches <a href="/IP/PORT#protocol"> on proxydb.net
 var proxydbRE = regexp.MustCompile(`<a href="/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/(\d+)#(\w+)`)
 
+// hideMyNameRE matches hidemy.name tr format
+var hideMyNameRE = regexp.MustCompile(`<td[^>]+class=["']?tdl[^>]*>\s*(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s*</td>\s*<td[^>]*>\s*(\d+)\s*</td>`)
+
+// proxyListOrgRE matches proxy-list.org ul/li format (port is obfuscated, skip)
+// spysOneRE matches spys.one tr format
+var spysOneRE = regexp.MustCompile(`<tr[^>]*>.*?<td[^>]*>(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})</td>.*?<td[^>]*>.*?(\d+)</td>`)
+
+type htmlSource struct {
+	url string
+	re  *regexp.Regexp
+	cat string // fallback category
+}
+
 var htmlSources = []htmlSource{
 	{"https://proxydb.net/", proxydbRE, "http"},
+	{"https://free-proxy-list.net/", htmlTableRE, "http"},
+	{"https://www.sslproxies.org/", htmlTableRE, "http"},
+	{"https://www.us-proxy.org/", htmlTableRE, "http"},
+	{"https://www.socks-proxy.net/", htmlTableRE, "socks5"},
+	{"https://hidemy.name/en/proxy-list/", hideMyNameRE, "http"},
+	{"https://spys.one/en/free-proxy-list/", spysOneRE, "http"},
+}
+
+func parseHTMLEntity(s string) string {
+	s = strings.ReplaceAll(s, "&#10;", "")
+	s = strings.ReplaceAll(s, "&#13;", "")
+	s = strings.ReplaceAll(s, "&amp;", "&")
+	s = strings.ReplaceAll(s, "&lt;", "<")
+	s = strings.ReplaceAll(s, "&gt;", ">")
+	s = strings.ReplaceAll(s, "&quot;", "\"")
+	s = strings.ReplaceAll(s, "&nbsp;", " ")
+	return s
 }
 
 func parseHTMLSource(src htmlSource, body string) map[string][]string {
 	out := map[string][]string{"http": {}, "socks4": {}, "socks5": {}}
-	matches := src.re.FindAllStringSubmatch(body, -1)
-	for _, m := range matches {
-		if len(m) < 4 {
-			continue
+
+	flat := strings.ReplaceAll(body, "\n", " ")
+	flat = strings.ReplaceAll(flat, "\r", " ")
+
+	switch src.re {
+	case htmlTableRE:
+		matches := src.re.FindAllStringSubmatch(flat, -1)
+		for _, m := range matches {
+			if len(m) < 3 {
+				continue
+			}
+			ip := parseHTMLEntity(m[1])
+			port := parseHTMLEntity(m[2])
+			addr := ip + ":" + port
+			pn, _ := strconv.Atoi(port)
+			cat := src.cat
+			if pn == 1080 || pn == 1081 {
+				cat = "socks5"
+			} else if pn == 4145 || pn == 1082 {
+				cat = "socks4"
+			}
+			out[cat] = append(out[cat], addr)
 		}
-		ip, port, frag := m[1], m[2], m[3]
-		cat := src.cat
-		switch frag {
-		case "socks4":
-			cat = "socks4"
-		case "socks5":
-			cat = "socks5"
+
+	case proxydbRE:
+		matches := src.re.FindAllStringSubmatch(body, -1)
+		for _, m := range matches {
+			if len(m) < 4 {
+				continue
+			}
+			ip, port, frag := m[1], m[2], m[3]
+			cat := src.cat
+			switch frag {
+			case "socks4":
+				cat = "socks4"
+			case "socks5":
+				cat = "socks5"
+			}
+			out[cat] = append(out[cat], ip+":"+port)
 		}
-		out[cat] = append(out[cat], ip+":"+port)
+
+	default:
+		matches := src.re.FindAllStringSubmatch(body, -1)
+		for _, m := range matches {
+			if len(m) < 3 {
+				continue
+			}
+			addr := m[1] + ":" + m[2]
+			pn, _ := strconv.Atoi(m[2])
+			cat := src.cat
+			if strings.Contains(body, "socks5") || pn == 1080 || pn == 1081 {
+				cat = "socks5"
+			} else if strings.Contains(body, "socks4") || pn == 4145 {
+				cat = "socks4"
+			}
+			out[cat] = append(out[cat], addr)
+		}
 	}
+
 	return out
 }
 
@@ -405,10 +499,16 @@ func makeClient(proxyURL string) (*http.Client, error) {
 func scrape() map[string]map[string]struct{} {
 	fmt.Println("[*] Phase 1: Downloading proxy lists...")
 
-	client := &http.Client{Timeout: downloadTimeout}
+	tr := &http.Transport{
+		MaxIdleConns:        200,
+		MaxConnsPerHost:     10,
+		IdleConnTimeout:     30 * time.Second,
+		DisableCompression:  false,
+	}
+	client := &http.Client{Transport: tr, Timeout: downloadTimeout}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	limit := 50
+	limit := 100
 	sem := make(chan struct{}, limit)
 
 	merged := map[string]map[string]struct{}{
@@ -417,65 +517,66 @@ func scrape() map[string]map[string]struct{} {
 		"socks5": {},
 	}
 
+	download := func(url string, fn func(string)) {
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			req, err := http.NewRequest("GET", url, nil)
+			if err != nil {
+				return
+			}
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+			req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+			if resp.StatusCode != 200 {
+				resp.Body.Close()
+				return
+			}
+			body, err := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				return
+			}
+			fn(string(body))
+		}()
+	}
+
+	// Raw text sources
 	for cat, urls := range sources {
 		for _, u := range urls {
-			sem <- struct{}{}
-			wg.Add(1)
-			go func(category, url string) {
-				defer wg.Done()
-				defer func() { <-sem }()
-				req, err := http.NewRequest("GET", url, nil)
-				if err != nil {
-					return
-				}
-				req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-				resp, err := client.Do(req)
-				if err != nil {
-					return
-				}
-				if resp.StatusCode != 200 {
-					resp.Body.Close()
-					return
-				}
-				body, _ := io.ReadAll(resp.Body)
-				resp.Body.Close()
-				matches := ipPortRE.FindAllString(string(body), -1)
+			cu := cat
+			download(u, func(body string) {
+				matches := ipPortRE.FindAllString(body, -1)
 				mu.Lock()
 				for _, m := range matches {
-					merged[category][category+"://"+m] = struct{}{}
+					merged[cu][cu+"://"+m] = struct{}{}
 				}
 				mu.Unlock()
-			}(cat, u)
+			})
 		}
 	}
-	wg.Wait()
 
+	// HTML sources (concurrent with raw)
 	for _, src := range htmlSources {
-		fmt.Printf("[*] Scraping HTML source: %s\n", src.url)
-		req, err := http.NewRequest("GET", src.url, nil)
-		if err != nil {
-			continue
-		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-		resp, err := client.Do(req)
-		if err != nil {
-			continue
-		}
-		if resp.StatusCode != 200 {
-			resp.Body.Close()
-			continue
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		parsed := parseHTMLSource(src, string(body))
-		mu.Lock()
-		for cat, proxies := range parsed {
-			for _, p := range proxies {
-				merged[cat][cat+"://"+p] = struct{}{}
+		s := src
+		download(s.url, func(body string) {
+			parsed := parseHTMLSource(s, body)
+			mu.Lock()
+			for cat, proxies := range parsed {
+				for _, p := range proxies {
+					merged[cat][cat+"://"+p] = struct{}{}
+				}
 			}
-		}
-		mu.Unlock()
+			mu.Unlock()
+		})
 	}
+
+	wg.Wait()
 
 	for cat, set := range merged {
 		fmt.Printf("[+] %s: %d unique proxies\n", cat, len(set))
@@ -598,8 +699,11 @@ func checkProxies(proxies []string, realIP string) []proxyCheckResult {
 	fmt.Printf("\n[*] Phase 2: Checking %d proxies...\n", len(proxies))
 
 	ctx := context.Background()
-	limit := 20000
-	sem := make(chan struct{}, limit)
+	workers := 500
+	if len(proxies) < workers {
+		workers = len(proxies)
+	}
+	sem := make(chan struct{}, workers)
 	resultCh := make(chan proxyCheckResult, len(proxies))
 
 	var checked atomic.Int64

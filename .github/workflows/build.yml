@@ -38,6 +38,16 @@ jobs:
       - name: Build
         run: go build -ldflags "-s -w -X main.version=${{ github.ref_name }}" -o proxy_scraper${{ matrix.ext }} .
 
+      - name: Sign Windows binary
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          PFX_PASSWORD: ${{ secrets.PFX_PASSWORD }}
+        run: |
+          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2
+          $cert.Import("codesign.pfx", $env:PFX_PASSWORD, "DefaultKeySet")
+          Set-AuthenticodeSignature -FilePath "proxy_scraper.exe" -Certificate $cert -TimestampServer "http://timestamp.digicert.com" -HashAlgorithm sha256
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -59,9 +69,25 @@ jobs:
           mv proxy_scraper proxy_scraper_linux_amd64 2>/dev/null || true
           mv proxy_scraper.exe proxy_scraper_windows_amd64.exe 2>/dev/null || true
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "**Proxy Scraper & Checker ${{ github.ref_name }}**" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "+ 100+ источников прокси (GitHub, API, HTML)" >> $GITHUB_OUTPUT
+          echo "+ Многопоточная проверка (до 20 000 воркеров)" >> $GITHUB_OUTPUT
+          echo "+ GeoIP — автоопределение страны (MMDB)" >> $GITHUB_OUTPUT
+          echo "+ Сортировка: countries/{code}/{protocol}.txt" >> $GITHUB_OUTPUT
+          echo "+ GitHub Actions: сборка Linux + Windows" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "**Полный список изменений:** https://github.com/${{ github.repository }}/commits/${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             proxy_scraper_linux_amd64
             proxy_scraper_windows_amd64.exe
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.body }}
+          name: ${{ github.ref_name }}

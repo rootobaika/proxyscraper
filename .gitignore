@@ -1,0 +1,8 @@
+*.exe
+*.syso
+result/
+GeoLite2-Country.mmdb
+.DS_Store
+Thumbs.db
+bot/
+proxysrc.7z

@@ -710,14 +710,10 @@ func getRealIP() string {
 	return ip
 }
 
-func checkProxies(proxies []string, realIP string) []proxyCheckResult {
-	fmt.Printf("\n[*] Phase 2: Checking %d proxies...\n", len(proxies))
+func checkProxies(proxies []string, realIP string, workers int) []proxyCheckResult {
+	fmt.Printf("\n[*] Phase 2: Checking %d proxies with %d workers...\n", len(proxies), workers)
 
 	ctx := context.Background()
-	workers := 500
-	if len(proxies) < workers {
-		workers = len(proxies)
-	}
 	sem := make(chan struct{}, workers)
 	resultCh := make(chan proxyCheckResult, len(proxies))
 
@@ -1074,13 +1070,36 @@ var version string // set via -ldflags, e.g. -X main.version=2.0.0
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	workers := 0
+	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "--workers=") {
+			n, err := strconv.Atoi(arg[len("--workers="):])
+			if err == nil && n > 0 {
+				workers = n
+			}
+		}
+	}
+
+	if workers == 0 {
+		fmt.Print("Enter workers count: ")
+		reader := bufio.NewReader(os.Stdin)
+		line, _ := reader.ReadString('\n')
+		line = strings.TrimSpace(line)
+		n, err := strconv.Atoi(line)
+		if err == nil && n > 0 {
+			workers = n
+		} else {
+			workers = 2500
+		}
+	}
+
 	ts := time.Now().Format("2006-01-02_15-04-05")
 	outDir := filepath.Join("result", ts)
 
 	if version != "" {
-		fmt.Printf("=== GO PROXY SCRAPER + CHECKER v%s ===\n[*] Output: %s/\n", version, outDir)
+		fmt.Printf("=== GO PROXY SCRAPER + CHECKER v%s ===\n[*] Workers: %d\n[*] Output: %s/\n", version, workers, outDir)
 	} else {
-		fmt.Printf("=== GO PROXY SCRAPER + CHECKER ===\n[*] Output: %s/\n", outDir)
+		fmt.Printf("=== GO PROXY SCRAPER + CHECKER ===\n[*] Workers: %d\n[*] Output: %s/\n", workers, outDir)
 	}
 
 	start := time.Now()
@@ -1094,8 +1113,12 @@ func main() {
 		return
 	}
 
+	if workers > len(proxies) {
+		workers = len(proxies)
+	}
+
 	realIP := getRealIP()
-	valid := checkProxies(proxies, realIP)
+	valid := checkProxies(proxies, realIP, workers)
 	if len(valid) == 0 {
 		fmt.Println("[-] No working proxies found.")
 		return

@@ -13,20 +13,20 @@ import (
 )
 
 type ghRepo struct {
-	FullName    string `json:"full_name"`
+	FullName      string `json:"full_name"`
 	DefaultBranch string `json:"default_branch"`
-	HTMLURL     string `json:"html_url"`
-	Stars       int    `json:"stargazers_count"`
-	UpdatedAt   string `json:"updated_at"`
+	HTMLURL       string `json:"html_url"`
+	Stars         int    `json:"stargazers_count"`
+	UpdatedAt     string `json:"updated_at"`
 }
 
 type searchResp struct {
 	Items []struct {
-		FullName    string `json:"full_name"`
+		FullName      string `json:"full_name"`
 		DefaultBranch string `json:"default_branch"`
-		HTMLURL     string `json:"html_url"`
-		Stars       int    `json:"stargazers_count"`
-		UpdatedAt   string `json:"updated_at"`
+		HTMLURL       string `json:"html_url"`
+		Stars         int    `json:"stargazers_count"`
+		UpdatedAt     string `json:"updated_at"`
 	} `json:"items"`
 }
 
@@ -64,6 +64,8 @@ var fileNames = []string{
 	"SOCKS5.txt",
 }
 
+const outputFile = "github_sources.txt"
+
 func main() {
 	token := ""
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
@@ -73,9 +75,11 @@ func main() {
 	fmt.Println("=== GitHub Proxy Hunter ===")
 	fmt.Println("Searching for proxy list repositories...")
 	if token == "" {
-		fmt.Println("[!] No token provided — rate limit 60 req/h. Use: githunter.exe YOUR_TOKEN")
+		fmt.Println("[!] No token — rate limit 60 req/h")
 		fmt.Println()
 	}
+
+	cutoff := time.Now().Add(-24 * time.Hour)
 
 	seen := map[string]bool{}
 	var repos []ghRepo
@@ -114,14 +118,18 @@ func main() {
 			}
 			mu.Lock()
 			for _, item := range sr.Items {
+				updated, err := time.Parse(time.RFC3339, item.UpdatedAt)
+				if err != nil || updated.Before(cutoff) {
+					continue
+				}
 				if !seen[item.FullName] {
 					seen[item.FullName] = true
 					repos = append(repos, ghRepo{
-						FullName:    item.FullName,
+						FullName:      item.FullName,
 						DefaultBranch: item.DefaultBranch,
-						HTMLURL:     item.HTMLURL,
-						Stars:       item.Stars,
-						UpdatedAt:   item.UpdatedAt,
+						HTMLURL:       item.HTMLURL,
+						Stars:         item.Stars,
+						UpdatedAt:     item.UpdatedAt,
 					})
 				}
 			}
@@ -135,87 +143,72 @@ func main() {
 		return repos[i].Stars > repos[j].Stars
 	})
 
-	fmt.Printf("\n=== Found %d unique repositories ===\n\n", len(repos))
-	fmt.Println("HTTP sources:")
-	fmt.Println("---")
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("=== GitHub Proxy Hunter === %s\n", time.Now().Format("2006-01-02 15:04:05")))
+	sb.WriteString(fmt.Sprintf("Repos updated in last 24h: %d\n\n", len(repos)))
+	sb.WriteString(fmt.Sprintf("=== HTTP ===\n"))
+	sb.WriteString("\n")
 	for _, r := range repos {
-		parts := strings.Split(r.FullName, "/")
-		if len(parts) != 2 {
-			continue
-		}
-		owner, repo := parts[0], parts[1]
-		branch := r.DefaultBranch
-		if branch == "" {
-			branch = "master"
-		}
-		base := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s", owner, repo)
-		for _, path := range knownPaths {
-			for _, fn := range fileNames {
-				url := base
-				if path != "" {
-					url += "/" + path
-				}
-				url += "/" + fn
-				if strings.HasSuffix(fn, "http.txt") || strings.HasSuffix(fn, "https.txt") || fn == "HTTP.txt" {
-					fmt.Println(url)
-				}
-			}
+		for _, url := range genURLs(r, "http.txt", "https.txt", "HTTP.txt") {
+			sb.WriteString(url + "\n")
 		}
 	}
 
-	fmt.Println("\nSOCKS4 sources:")
-	fmt.Println("---")
+	sb.WriteString(fmt.Sprintf("\n=== SOCKS4 ===\n"))
+	sb.WriteString("\n")
 	for _, r := range repos {
-		parts := strings.Split(r.FullName, "/")
-		if len(parts) != 2 {
-			continue
-		}
-		owner, repo := parts[0], parts[1]
-		branch := r.DefaultBranch
-		if branch == "" {
-			branch = "master"
-		}
-		base := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s", owner, repo)
-		for _, path := range knownPaths {
-			for _, fn := range fileNames {
-				url := base
-				if path != "" {
-					url += "/" + path
-				}
-				url += "/" + fn
-				if strings.HasSuffix(fn, "socks4.txt") || fn == "SOCKS4.txt" {
-					fmt.Println(url)
-				}
-			}
+		for _, url := range genURLs(r, "socks4.txt", "SOCKS4.txt") {
+			sb.WriteString(url + "\n")
 		}
 	}
 
-	fmt.Println("\nSOCKS5 sources:")
-	fmt.Println("---")
+	sb.WriteString(fmt.Sprintf("\n=== SOCKS5 ===\n"))
+	sb.WriteString("\n")
 	for _, r := range repos {
-		parts := strings.Split(r.FullName, "/")
-		if len(parts) != 2 {
-			continue
-		}
-		owner, repo := parts[0], parts[1]
-		branch := r.DefaultBranch
-		if branch == "" {
-			branch = "master"
-		}
-		base := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s", owner, repo)
-		for _, path := range knownPaths {
-			for _, fn := range fileNames {
-				url := base
-				if path != "" {
-					url += "/" + path
-				}
-				url += "/" + fn
-				if strings.HasSuffix(fn, "socks5.txt") || fn == "SOCKS5.txt" {
-					fmt.Println(url)
-				}
-			}
+		for _, url := range genURLs(r, "socks5.txt", "SOCKS5.txt") {
+			sb.WriteString(url + "\n")
 		}
 	}
 
-	fmt.Printf("\n=== DONE — %d repos found ===\n", len(repos))
+	fmt.Printf("\n=== Found %d repos updated in last 24h ===\n", len(repos))
+	fmt.Printf("[*] Saved to %s\n", outputFile)
+
+	os.WriteFile(outputFile, []byte(sb.String()), 0644)
+
+	fmt.Println()
+	fmt.Println("Top repos by stars:")
+	for i, r := range repos {
+		if i >= 10 {
+			break
+		}
+		fmt.Printf("  %s ⭐%d\n", r.FullName, r.Stars)
+	}
 }
+
+func genURLs(r ghRepo, names ...string) []string {
+	parts := strings.Split(r.FullName, "/")
+	if len(parts) != 2 {
+		return nil
+	}
+	owner, repo := parts[0], parts[1]
+	base := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s", owner, repo)
+	var out []string
+	for _, path := range knownPaths {
+		for _, fn := range fileNames {
+			for _, name := range names {
+				if fn == name {
+					url := base
+					if path != "" {
+						url += "/" + path
+					}
+					url += "/" + fn
+					out = append(out, url)
+				}
+			}
+		}
+	}
+	return out
+}
+
+
